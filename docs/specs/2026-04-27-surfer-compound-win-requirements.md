@@ -3,7 +3,7 @@ date: 2026-04-27
 topic: surfer-compound-win-140-to-1000
 ---
 
-# Requisitos: camino compuesto $140 ? $1000 (Surfer + cóctel fijo)
+# Requisitos: camino compuesto $140 → $1000 (Surfer + cóctel fijo)
 
 ## Problem Frame
 
@@ -19,17 +19,17 @@ El cuello de botella observado es el **trade-off** ruina vs win: los filtros fue
 
 **Objetivo y métricas**
 
-- R1. La **meta terminal** sigue siendo **equity final ? 1000 USD** (o la unidad monetaria configurada equivalente), desde saldo inicial **140 USD**.
-- R2. El backtest debe reportar como mínimo: **P(win terminal)** (estimador Monte Carlo o el definido hoy), **P(ruina)** con definición explícita acordada (p. ej. equity ? umbral de muerte), y **P(supervivencia “media”)** si se usa, con la misma definición que en tablas ya publicadas.
-- R3. Añadir **métricas de camino compuesto**, al menos: **P(ruina antes de duplicar capital inicial)** (o antes de cruzar umbral de etapa 1), y **P(win terminal | equity alcanzó U en algún momento)** para **U ? {250, 400}** (valores por defecto; deben ser parámetros de config).
+- R1. La **meta terminal** sigue siendo **equity final ≥ 1000 USD** (o la unidad monetaria configurada equivalente), desde saldo inicial **140 USD**.
+- R2. El backtest debe reportar como mínimo: **P(win terminal)** (estimador Monte Carlo o el definido hoy), **P(ruina)** con definición explícita acordada (p. ej. equity ≤ umbral de muerte), y **P(supervivencia “media”)** si se usa, con la misma definición que en tablas ya publicadas.
+- R3. Añadir **métricas de camino compuesto**, al menos: **P(ruina antes de duplicar capital inicial)** (o antes de cruzar umbral de etapa 1), y **P(win terminal | equity alcanzó U en algún momento)** para **U ∈ {250, 400}** (valores por defecto; deben ser parámetros de config).
 - R4. Mantener **señal de trading fija** en la variante “v1 de producto”: **Cóctel** (doble confirmación + anti-whipsaw). No se optimizan nuevos indicadores en la misma corrida que el ladder de riesgo.
 
 **Comportamiento de riesgo por etapas (alcance v1)**
 
 - R5. Definir **al menos dos bandas de equity** con políticas distintas solo en **apalancamiento y/o fracción de riesgo**, no en reglas de entrada/salida del surfer. Ejemplo normativo (ajustable por config):
   - **Etapa A:** equity &lt; **250 USD** — apalancamiento reducido (p. ej. 5× o 3×) respecto al baseline 10×.
-  - **Etapa B:** equity ? **250 USD** — apalancamiento nominal (p. ej. 10×) o intermedio hasta otro umbral opcional.
-- R6. Opcional v1.1 (no bloquea v1): **de-risk parcial** al cruzar umbral alto (p. ej. ?400 USD), congelando una **fracción** del equity en “efectivo” no arriesgado; la fracción y el umbral son parámetros, default puede ser **0%** (apagado) para no multiplicar superficie antes del primer experimento.
+  - **Etapa B:** equity ≥ **250 USD** — apalancamiento nominal (p. ej. 10×) o intermedio hasta otro umbral opcional.
+- R6. Opcional v1.1 (no bloquea v1): **de-risk parcial** al cruzar umbral alto (p. ej. ≥400 USD), congelando una **fracción** del equity en “efectivo” no arriesgado; la fracción y el umbral son parámetros, default puede ser **0%** (apagado) para no multiplicar superficie antes del primer experimento.
 
 **Validación y tabúes anti–curve-fitting**
 

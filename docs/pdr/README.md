@@ -4,7 +4,17 @@
 **Versión PDR:** 1.0 · **Revisión:** lista para comité de ingeniería  
 **Baseline:** especificaciones ecosystem v1.5–v1.8  
 
-Este directorio contiene el **Preliminary Design Review (PDR)** en archivos independientes, listos para wiki, Confluence o revisión en GitHub/GitLab.
+Este directorio contiene un **Preliminary Design Review (PDR)** en archivos independientes.
+
+> **Qué es y qué no es.** Es un *ejercicio de ingeniería de sistemas* escrito por
+> una sola persona: aplicar a un proyecto propio el formato de revisión (matriz
+> de trazabilidad, ICD, registro de riesgos con RPN, plan de V&V, checklist
+> Go/No-Go) que se usa en equipos grandes. **No hubo comité, ni aprobadores, ni
+> firmas**: las tablas de roles del archivo `05` son la plantilla del formato,
+> no un registro de aprobaciones reales. El estado real del código está en
+> [DRE_IMPLEMENTATION_STATUS.md](../DRE_IMPLEMENTATION_STATUS.md) y en
+> [`../../AUDIT.md`](../../AUDIT.md); la columna "Estado" de la matriz FR/NFR
+> dice **Diseñado**, no **Implementado**, y eso es literal.
 
 ## Archivos
 
