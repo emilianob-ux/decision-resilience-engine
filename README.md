@@ -1,170 +1,290 @@
-﻿# Decision Resilience Engine (DRE) — decision-resilience-engine
+# Decision Resilience Engine (DRE)
 
-**English version:** [README.en.md](README.en.md)
+**Un motor de decisiones que no miente sobre su estado: cada paso queda en una
+bitácora append-only, reejecutarlo no duplica nada, y se retoma exactamente donde
+quedó.**
 
-Framework de investigacion y ejecucion centrado en **resiliencia y gobernanza de decisiones** (DRE), con **MAT** como puente de medicion cuantitativa secundario (futuros BTC/ETH):
-
-- **DRE (MVP)**: orquestador con FSM, governance append-only, checkpoints/resume, API FastAPI, storage memoria/Redis y contratos ICD.
-- **MAT**: backtest compuesto BTC/ETH (futuros USDT) con ventanas deslizantes, funding y optimizacion de reglas de senal.
+> *A decision engine that doesn't lie about its own state: every transition lands in
+> an append-only ledger, re-running is idempotent, and any run resumes from its last
+> checkpoint. Ships with a quantitative backtesting lab (MAT) used as its measurement
+> bench.*
 
 [![CI](https://github.com/emilianob-ux/decision-resilience-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/emilianob-ux/decision-resilience-engine/actions/workflows/ci.yml)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%20|%203.12-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11 | 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![PyPI legacy](https://img.shields.io/pypi/v/sistema-optimizacion-mat.svg?label=PyPI%20%28legacy%29)](https://pypi.org/project/sistema-optimizacion-mat/)
-[![PyPI nuevo nombre](https://img.shields.io/badge/decision--resilience--engine-en%20PyPI-pendiente-lightgrey)](docs/PUBLISHING_PYPI.md)
+[![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen.svg)](tests/)
 
-> **Aviso legal:** software experimental para investigacion. El rendimiento pasado no garantiza resultados futuros.
+**English:** [README.en.md](README.en.md) · **Auditoría honesta del repo:** [AUDIT.md](AUDIT.md)
 
 ---
 
-## Que aporta este proyecto
+## El problema
 
-- **Resiliencia de decisiones:** flujo con estados, auditoria, colision `run_id`/`data_hash`, checkpoints y reanudacion (DRE).
-- **Reproducibilidad:** CI y tests activos, dataset sintetico y contratos versionados.
-- **Operabilidad real:** API HTTP, almacenamiento Redis opcional y trazas append-only en SQLite.
-- **Extensibilidad:** separacion clara entre skills DRE, contratos ICD y simulador MAT como medicion.
+Un pipeline de decisión que corre por horas y se cae a la mitad deja tres preguntas
+sin respuesta: *¿en qué estado quedó?*, *¿puedo reejecutarlo sin duplicar nada?* y
+*¿puedo demostrar después por qué decidió lo que decidió?* La respuesta habitual son
+logs sueltos y un `try/except` que reinicia desde cero.
 
-## Demo en 60 segundos
+**Este repo es mi respuesta a esas tres preguntas**, implementada en chico y con
+tests que la verifican.
+
+## Para quién
+
+- **Ingenieros** que construyen orquestación de larga duración y necesitan
+  reanudación y auditoría, no solo reintentos.
+- **Quants / researchers** que quieran un banco de medición reproducible: el
+  laboratorio MAT (futuros BTC/ETH) entra al motor como *measurement command*.
+- **Quien evalúa mi trabajo:** este repo está para mostrar cómo separo contratos,
+  estado y efectos; cómo elijo qué *no* construir; y cómo documento lo que falta.
+
+## Qué hay hoy (MVP) y qué es aspiración
+
+| | Hoy (implementado + testeado) | Roadmap / diseñado |
+|---|---|---|
+| **Orquestación** | FSM en tabla, 21 transiciones, 16 estados; transición no declarada ⇒ `FSMError` | Router por modo de ejecución (FAST/DEEP_AUDIT); hoy todo corre como `STANDARD` |
+| **Governance** | SQLite: registro idempotente por `(run_id, data_hash)`, bitácora append-only encadenada, colisión ⇒ HTTP 409 tipado | Triggers que rechacen `UPDATE`/`DELETE` en la propia base; PostgreSQL |
+| **Resiliencia** | Checkpoint por transición; `resume` devuelve el contexto **idéntico** campo por campo | TTL y limpieza automática de checkpoints |
+| **Estado volátil** | `ContextStore` (ABC) + backends memoria y Redis (probado con `fakeredis`) | Redis real distribuido con locking |
+| **API** | `GET /dre/health`, `POST /dre/simulate`, `POST /dre/resume` (FastAPI, 422/404/409 correctos) | Auth, rate limiting, gRPC |
+| **Skills numéricos** | *lite* y honestos: forecasting KS-vs-normal, stress LP (HiGHS), drift PSI+Frobenius, overlap causal Tier-1, clasificador de override | KDE+FFT, copulas, programación estocástica en 2 etapas, DoWhy/CausalML |
+| **Medición (MAT)** | Backtest compuesto BTC/ETH con funding, ventanas deslizantes y walk-forward (`--holdout-frac`) | Tests unitarios del runner (ver [AUDIT.md](AUDIT.md) P1-5) |
+
+El mapa completo componente → archivo → test, y la lista explícita de lo que
+**no** está implementado: [`docs/DRE_IMPLEMENTATION_STATUS.md`](docs/DRE_IMPLEMENTATION_STATUS.md).
+
+## Demo de 60 segundos
+
+```bash
+git clone https://github.com/emilianob-ux/decision-resilience-engine
+cd decision-resilience-engine
+pip install -r requirements.txt -r requirements-dev.txt
+bash scripts/demo_dre.sh
+```
+
+Un comando, ~3 segundos, sin segunda terminal. Levanta la API sobre un ledger
+SQLite limpio y demuestra las tres propiedades del motor:
+
+```
+==> 3/5  POST /dre/resume  (reconstruye el contexto desde el ultimo checkpoint)
+current_state = MONITORING
+
+==> 4/5  Idempotencia: mismo run_id + mismo data_hash => el run NO se duplica
+registry_write = already_existed (esperado: already_existed)
+
+==> 5/5  Colision: mismo run_id + data_hash DISTINTO => HTTP 409 tipado
+     HTTP 409
+{
+    "error": "RUN_ID_COLLISION",
+    "data_hash_expected": "sha256:demo",
+    "data_hash_received": "sha256:OTRO",
+    "recovery": "Generate new run_id or verify input pipeline consistency"
+}
+
+==> Bitacora persistida (SQLite append-only)
+     runs registrados = 1   eventos de auditoria = 18   checkpoints = 18
+       IDLE               --REQUEST_RECEIVED        --> ROUTING
+       ROUTING            --CLASSIFIED              --> VALIDATING
+       VALIDATING         --VALIDATION_PASS         --> FORECASTING
+       ...
+       COMPLETED          --DEPLOY_MONITOR          --> MONITORING
+```
+
+*Dos envíos idénticos, una sola fila de registro, 18 eventos de bitácora, 409 en la
+colisión. Eso es todo el argumento del repo, ejecutable.*
+
+## Por qué esto muestra criterio de ingeniería
+
+1. **Las invariantes están testeadas, no prometidas.**
+   `tests/test_dre_invariants.py` no verifica que el camino feliz termine bien:
+   verifica que la bitácora esté **encadenada** (el `state_after` de cada evento es
+   el `state_before` del siguiente), que `resume` devuelva el contexto exacto
+   (`model_dump` completo, no solo el estado), y que la FSM no tenga estados
+   inalcanzables — validada como grafo, sin ejecutarla.
+
+2. **La documentación es un contrato que CI hace cumplir.**
+   El ICD dice espejar `dre/contracts/`; `tests/test_docs_contract.py` verifica que
+   los snippets sean el archivo **verbatim** y falla si divergen. El mismo archivo
+   guarda contra los dos errores de Mermaid que rompían los diagramas en GitHub y
+   contra la regresión de imports que tenía la demo rota.
+
+3. **Elijo qué no construir, y lo digo.**
+   Los skills se llaman *lite* porque son proxies baratos: `forecasting` es un test
+   KS contra una normal, no KDE con FFT. Está escrito así en el código
+   (`kind: "univariate_gaussian_proxy"`), en el estado de implementación y en la
+   auditoría. Prefiero un repo que dice "esto es un proxy" a uno que dice
+   "inferencia causal" sobre 25 líneas.
+
+> **Aviso:** software experimental de investigación. **No es asesoramiento
+> financiero.** El componente MAT mide probabilidades sobre datos históricos o
+> sintéticos; el rendimiento pasado no garantiza resultados futuros.
+
+---
+
+## La FSM que realmente corre
+
+Estas son las 21 transiciones que hay en `dre/orchestrator/fsm.py`, no un diagrama
+de diseño. En **negrita** el camino que ejecuta la demo.
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> ROUTING : REQUEST_RECEIVED
+    ROUTING --> VALIDATING : CLASSIFIED
+    ROUTING --> FAILED : ROUTING_FAILED
+    VALIDATING --> FORECASTING : VALIDATION_PASS
+    VALIDATING --> FAILED : VALIDATION_BLOCKED
+    FORECASTING --> OPTIMIZING : FORECAST_SKIP_CAUSAL
+    FORECASTING --> CAUSAL : FORECAST_NEED_CAUSAL
+    CAUSAL --> OPTIMIZING : CAUSAL_PASS
+    CAUSAL --> ESCALATED : CAUSAL_BLOCKED
+    OPTIMIZING --> GOVERNING_PARTIAL : OPTIMIZATION_READY
+    GOVERNING_PARTIAL --> STRESS_TESTING : PARTIAL_GOVERNANCE_DONE
+    STRESS_TESTING --> GOVERNING_FINAL : STRESS_PASS
+    STRESS_TESTING --> BACKPROP : STRESS_BACKPROP
+    STRESS_TESTING --> ESCALATED : STRESS_ESCALATE
+    BACKPROP --> OPTIMIZING : REFORM_SUCCESS
+    BACKPROP --> ESCALATED : REFORM_INFEASIBLE
+    GOVERNING_FINAL --> COMPLETED : FINAL_GOVERNANCE_DONE
+    COMPLETED --> MONITORING : DEPLOY_MONITOR
+    MONITORING --> ROUTING : MONITORING_DRIFT
+    ESCALATED --> STRESS_TESTING : OVERRIDE_TO_STRESS
+    ESCALATED --> FAILED : OVERRIDE_REJECT
+```
+
+Cada transición escribe **un** evento de auditoría y **un** checkpoint. El único
+estado absorbente es `FAILED`: `COMPLETED` pasa a `MONITORING`, que puede volver a
+`ROUTING` por drift. Las ramas `BACKPROP` y `ESCALATED` están declaradas y
+testeadas en la tabla, pero **ningún recorrido implementado las recorre todavía**
+(ver [AUDIT.md](AUDIT.md) P2-4).
+
+---
+
+## Los dos quickstarts
+
+Este repo tiene **dos capas separadas**. No hace falta la segunda para evaluar la
+primera.
+
+### 1. DRE — el motor (empezá por acá)
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python scripts/bootstrap_synthetic_candles_db.py
+
+bash scripts/demo_dre.sh              # demo completa en un comando
+# o, a mano:
 python scripts/run_dre_api.py --db data/dre_governance.sqlite
 ```
 
-En otra terminal:
-
 ```bash
-curl -X POST "http://127.0.0.1:8000/dre/simulate" \
+curl -X POST http://127.0.0.1:8000/dre/simulate \
   -H "Content-Type: application/json" \
-  -d '{
-    "run_id": "opt_20260506_000100_v5.0",
-    "data_hash": "sha256:demo",
-    "rng_seed": 7,
-    "variant": "standard"
-  }'
-```
+  -d '{"run_id":"opt_20260506_000100_v5.0","data_hash":"sha256:demo","rng_seed":7,"variant":"standard"}'
 
-Luego:
-
-```bash
-curl -X POST "http://127.0.0.1:8000/dre/resume" \
+curl -X POST http://127.0.0.1:8000/dre/resume \
   -H "Content-Type: application/json" \
   -d '{"run_id":"opt_20260506_000100_v5.0"}'
 ```
 
----
+| Endpoint | Qué hace | Errores tipados |
+|---|---|---|
+| `GET /dre/health` | Liveness | — |
+| `POST /dre/simulate` | Recorre la FSM completa y persiste bitácora + checkpoints | `422` payload inválido · `409` `RUN_ID_COLLISION` |
+| `POST /dre/resume` | Reconstruye el contexto desde el último checkpoint | `404` sin checkpoint para ese `run_id` |
 
-## Instalación
+El `run_id` sigue el patrón `^opt_\d{8}_\d{6}_v5\.0$` — es parte del contrato, no una
+convención: un id malformado devuelve 422.
 
-### PyPI — nombre anterior (sigue publicado)
+### 2. MAT — el laboratorio de medición (opcional)
 
-Este proyecto se publicó en PyPI históricamente como **[`sistema-optimizacion-mat`](https://pypi.org/project/sistema-optimizacion-mat/)**. Es la razón por la que el badge “legacy” muestra versión y el enlace **[`decision-resilience-engine`](https://pypi.org/project/decision-resilience-engine/)** todavía no existe en el índice de PyPI.
-
-```bash
-pip install sistema-optimizacion-mat
-```
-
-Las versiones ahí pueden quedar **rezagadas** respecto a `main` del repo; para lo último usá GitHub (abajo) o esperá la primera release bajo el nombre nuevo.
-
-### PyPI — nombre nuevo (`decision-resilience-engine`)
-
-El paquete en `pyproject.toml` pasó a llamarse `decision-resilience-engine`; **hasta que publiques la primera wheel** con ese nombre, no habrá proyecto en PyPI.
-
-**Todo listo para el primer upload:** seguí el checklist en orden en [`docs/PUBLISHING_PYPI.md`](docs/PUBLISHING_PYPI.md) (Trusted Publisher PyPI, environment `pypi` en GitHub, release con tag `v…` alineado a `project.version`; el workflow valida eso automáticamente).
-
-Cuando exista el proyecto en el índice:
+Backtest compuesto BTC/ETH (futuros USDT) con funding, ventanas deslizantes y
+walk-forward. **Es el banco de medición del motor, no el producto.**
 
 ```bash
-pip install decision-resilience-engine
-```
-
-### Desde GitHub (recomendado si querés el código actual)
-
-```bash
-pip install "git+https://github.com/emilianob-ux/decision-resilience-engine.git"
-```
-
-La wheel nueva incluirá los módulos **MAT** del `pyproject.toml`; el código **`dre/`** sigue pensado para usarse desde **clon del repositorio**.
-
-### Entorno completo del repo (DRE + MAT)
-
-```bash
-pip install -r requirements.txt -r requirements-dev.txt
-```
-
----
-
-## Inicio rapido MAT
-
-```bash
-python scripts/bootstrap_synthetic_candles_db.py
-pytest tests/ -q
+python scripts/bootstrap_synthetic_candles_db.py     # dataset sintético, ~0.3 s
+pytest tests/ -q                                     # 48 tests
 python compound_optimize_runner.py --db data/synthetic_signal_tune.db --holdout-frac 0.2
 ```
 
-Salida: JSON en stdout (por ejemplo `p_win_terminal`, `p_ruin`, `walk_forward`).
-
-Optimización de señales:
-
-```bash
-python scripts/optimize_signal_grid.py --db data/synthetic_signal_tune.db --preset smoke --skip-pairs --holdout-frac 0.2
-```
-
-- Dataset esperado: [`docs/DATASET.md`](docs/DATASET.md)
-- Ejemplos `--signal-config`: [`docs/signal_rules_examples.md`](docs/signal_rules_examples.md)
-
----
-
-## API DRE (MVP)
-
-Levantar servicio:
+Salida: JSON en stdout con `p_win_terminal`, `p_ruin`, `p_survive_medium` y el bloque
+`walk_forward` (in-sample vs holdout y sus deltas). Optimización por rejilla:
 
 ```bash
-python scripts/run_dre_api.py --db data/dre_governance.sqlite
+python scripts/optimize_signal_grid.py --db data/synthetic_signal_tune.db \
+  --preset smoke --skip-pairs --holdout-frac 0.2
 ```
 
-Endpoints:
+El puente entre las dos capas es `dre/measurement/mat_runner.py`: invoca el runner
+por subproceso y parsea su JSON (patrón *measurement command*). Hoy lo ejercita un
+test; el pipeline DRE todavía no lo llama.
 
-- `GET /dre/health`
-- `POST /dre/simulate`
-- `POST /dre/resume`
+---
 
-Ejemplo mínimo:
+## Documentación
+
+| Leé esto si… | Documento |
+|---|---|
+| Querés saber qué está implementado de verdad y qué no | [`docs/DRE_IMPLEMENTATION_STATUS.md`](docs/DRE_IMPLEMENTATION_STATUS.md) |
+| Vas a tocar el código y necesitás los contratos exactos | [`docs/pdr/02_Interface_Contracts_ICD.md`](docs/pdr/02_Interface_Contracts_ICD.md) |
+| Querés el diseño completo (**documento de diseño, no de estado**) | [`docs/DRE_TECHNICAL_ARCHITECTURE.md`](docs/DRE_TECHNICAL_ARCHITECTURE.md) |
+| Querés ver cómo escribo requisitos antes de codear | [`docs/specs/`](docs/specs/) |
+| Querés la crítica honesta de este mismo repo | [`AUDIT.md`](AUDIT.md) |
+| Vas a correr el laboratorio MAT paso a paso | [`docs/tutorial_quickstart.md`](docs/tutorial_quickstart.md) |
+| Necesitás el esquema de datos del runner | [`docs/DATASET.md`](docs/DATASET.md) |
+| Índice completo | [`docs/README.md`](docs/README.md) |
+
+---
+
+## Por qué existe este repo
+
+Trabajo sobre una convicción simple: **un sistema que no puede explicar cómo llegó a
+su estado no es confiable, por más que acierte.** Por eso acá la gobernanza no es
+una capa de logging encima del motor — es el motor: la FSM falla fuerte ante una
+transición no declarada, el ledger es append-only, la idempotencia se define por
+`(run_id, data_hash)` y no por timestamp, y el `resume` se testea comparando el
+contexto completo, no solo el estado final.
+
+Las decisiones de diseño que defiendo, en orden: **contratos explícitos** antes que
+convenciones; **reproducibilidad** (seeds, dataset sintético, contratos de métricas
+versionados) antes que resultados lindos; y **decir lo que falta** antes que inflar
+lo que hay — por eso este repo tiene un [AUDIT.md](AUDIT.md) que lo critica.
+
+Busco roles de **backend / plataforma / infraestructura de datos** donde la
+corrección y la auditabilidad importen más que la velocidad de feature. Si estás
+construyendo orquestación de larga duración, pipelines reanudables o sistemas con
+requisitos de auditoría, escribime — y si encontrás un claim de este repo que no
+se sostiene, abrí un issue: es la contribución que más valoro.
+
+---
+
+## Calidad
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/dre/simulate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "run_id": "opt_20260506_000100_v5.0",
-    "data_hash": "sha256:demo",
-    "rng_seed": 7,
-    "variant": "standard"
-  }'
+ruff check . && ruff format --check .   # lint + formato (ruff pineado exacto)
+pytest tests/ -q                        # 48 tests
+bash scripts/demo_dre.sh                # demo end-to-end
 ```
 
----
+CI corre ambas cosas en Python 3.11 y 3.12, genera el dataset sintético, ejecuta el
+smoke del runner MAT y valida los artefactos de build con `twine check --strict`.
 
-## Arquitectura y documentos
+## Instalación como paquete
 
-- Índice docs: [`docs/README.md`](docs/README.md)
-- PDR DRE (01–05): [`docs/pdr/README.md`](docs/pdr/README.md)
-- Arquitectura técnica DRE v1.1: [`docs/DRE_TECHNICAL_ARCHITECTURE.md`](docs/DRE_TECHNICAL_ARCHITECTURE.md)
-- Estado implementacion vs roadmap: [`docs/DRE_IMPLEMENTATION_STATUS.md`](docs/DRE_IMPLEMENTATION_STATUS.md)
-- Módulo DRE: [`dre/README.md`](dre/README.md)
+La wheel incluye el motor `dre/` y los módulos MAT. La API HTTP es un extra:
 
----
+```bash
+pip install "git+https://github.com/emilianob-ux/decision-resilience-engine.git"          # motor
+pip install "decision-resilience-engine[api] @ git+https://github.com/emilianob-ux/decision-resilience-engine.git"   # + FastAPI/uvicorn
+```
 
-## Estado actual
+Para evaluar el repo, **cloná**: la demo y los tests viven en el repositorio, no en
+la wheel.
 
-- Tests: `pytest tests/ -q` (incluye `test_dre_*`).
-- Calidad: `ruff check .`.
-- `main` con pipeline estable y documentacion lista para comite tecnico.
-
----
+<sub><b>Nota sobre PyPI.</b> Este proyecto se publicó históricamente bajo el nombre
+<code>sistema-optimizacion-mat</code> (última versión ahí: 0.2.0, solo módulos MAT).
+El nombre nuevo <code>decision-resilience-engine</code> <b>todavía no está publicado
+en PyPI</b>. El checklist para el primer upload está en
+<a href="docs/PUBLISHING_PYPI.md"><code>docs/PUBLISHING_PYPI.md</code></a>.</sub>
 
 ## Licencia y seguridad
 
-- Licencia: [MIT](LICENSE)
-- Reporte de seguridad: [SECURITY.md](SECURITY.md)
-- Historial: [CHANGELOG.md](CHANGELOG.md)
+- Licencia: [MIT](LICENSE) · Reporte de vulnerabilidades: [SECURITY.md](SECURITY.md)
+- Historial de cambios: [CHANGELOG.md](CHANGELOG.md)
