@@ -19,6 +19,9 @@ htmlcov/
 
 # Datos locales (no subir DB grandes ni caches de descarga)
 data/*.db
+# Ledger de gobernanza del DRE (lo crea scripts/run_dre_api.py y la demo).
+data/*.sqlite
+data/*.sqlite3
 !data/.gitkeep
 data/cache/
 
