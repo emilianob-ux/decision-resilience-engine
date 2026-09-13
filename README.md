@@ -14,7 +14,10 @@ quedó.**
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen.svg)](tests/)
 
-**English:** [README.en.md](README.en.md) · **Auditoría honesta del repo:** [AUDIT.md](AUDIT.md)
+**▶ Probalo primero:** [`bash scripts/demo_dre.sh`](#demo-de-60-segundos) — la demo
+completa en un comando, ~3 segundos.
+
+**English:** [README.en.md](README.en.md)
 
 ---
 

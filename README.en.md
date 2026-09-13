@@ -9,7 +9,10 @@ checkpoint.**
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen.svg)](tests/)
 
-**Versión en español (canónica):** [README.md](README.md) · **Honest self-audit:** [AUDIT.md](AUDIT.md)
+**▶ Try it first:** [`bash scripts/demo_dre.sh`](#60-second-demo) — the full demo in
+one command, ~3 seconds.
+
+**Versión en español (canónica):** [README.md](README.md)
 
 ---
 
