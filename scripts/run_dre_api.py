@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
-"""Servidor HTTP de desarrollo para la API DRE."""
+"""Servidor HTTP de desarrollo para la API DRE.
+
+Ejecutable directamente desde la raíz del repo (`python scripts/run_dre_api.py`).
+Python coloca `scripts/` —no la raíz— al frente de `sys.path` cuando se invoca un
+script por ruta, así que insertamos la raíz igual que el resto de los wrappers
+de `scripts/` para poder importar el paquete `dre` sin instalarlo.
+"""
 
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
-import uvicorn
+_ROOT = Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
-from dre.api.app import create_app
+import uvicorn  # noqa: E402
+
+from dre.api.app import create_app  # noqa: E402
 
 
 def main() -> None:

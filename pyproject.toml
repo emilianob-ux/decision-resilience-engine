@@ -28,15 +28,23 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Topic :: Office/Business :: Financial :: Investment",
 ]
+# Runtime del motor DRE (contratos + skills numéricos). La API HTTP es opcional
+# porque no todo consumidor necesita levantar un servidor: ver extra `api`.
 dependencies = [
   "numpy>=1.24,<3",
   "requests>=2.28.0,<3",
+  "pydantic>=2,<3",
+  "scipy>=1.11,<2",
 ]
 
 [project.optional-dependencies]
+api = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+]
 dev = [
   "pytest>=8,<9",
-  "ruff>=0.9,<1",
+  "ruff==0.16.7",  # pin exacto: ver requirements-dev.txt
   "pre-commit>=4,<5",
   "pydantic>=2,<3",
   "scipy>=1.11,<2",
@@ -57,11 +65,11 @@ PyPI = "https://pypi.org/project/decision-resilience-engine/"
 [tool.setuptools]
 py-modules = ["compound_optimize_runner", "leverage_pi"]
 
-# `dre/` es codigo de referencia del ICD en el repo y tests (requiere pydantic en dev);
-# no se incluye en la wheel PyPI (solo modulos MAT de medicion en features/).
+# El paquete se llama decision-resilience-engine, así que la wheel incluye el motor
+# `dre/`. `features*` son los módulos MAT usados como puente de medición.
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["features*"]
+include = ["dre*", "features*"]
 
 [tool.ruff]
 target-version = "py311"

@@ -1,7 +1,15 @@
 # Technical Architecture & Methodologies: Decision Resilience Engine
 
+> **⚠️ This is a DESIGN document, not a status report.** It describes the target
+> system. Most of what follows (KDE with FFT, copulas, two-stage stochastic
+> programming, DoWhy, tamper-evident ledger, Redis TTL policy, the latency SLAs
+> in §7) is **not implemented**. What actually runs today is a much smaller MVP:
+> see [DRE_IMPLEMENTATION_STATUS.md](DRE_IMPLEMENTATION_STATUS.md) for the
+> component-by-component map, and [`../AUDIT.md`](../AUDIT.md) for the honest gap
+> analysis. The §5.2 FSM diagram is the one section that matches the code.
+>
 > **Document purpose:** Technical reference for architects, data scientists, and MLOps engineers.  
-> **Scope:** Mathematical foundations, algorithmic pipelines, system design patterns, and compliance guarantees.  
+> **Scope:** Mathematical foundations, algorithmic pipelines, system design patterns, and compliance targets.  
 > **Version:** 1.1 (aligned with ecosystem specs v1.5–v1.8)
 
 ---
@@ -110,9 +118,9 @@ flowchart TD
     Causal -->|No| Optimizer[SeniorMathOptimizationExpert]:::skill
     CausalEng --> Optimizer
 
-    Optimizer --> GovPartial[LightweightGovernanceCore\n(Partial Write)]:::store
+    Optimizer --> GovPartial["LightweightGovernanceCore<br/>(Partial Write)"]:::store
     GovPartial --> Stress[SimulationStressTest]:::skill
-    Stress -->|PASS| GovFinal[LightweightGovernanceCore\n(Final Write)]:::store
+    Stress -->|PASS| GovFinal["LightweightGovernanceCore<br/>(Final Write)"]:::store
     Stress -->|FAIL & iter<2| Backprop[RobustnessBackpropagation]:::skill
     Stress -->|FAIL & iter≥2| Escalation[HumanOverrideProtocol]:::decision
 
@@ -123,10 +131,10 @@ flowchart TD
     Escalation -->|REJECTED| Failed[(FAILED)]:::ext
 
     GovFinal --> Completed[(COMPLETED)]:::ext
-    Completed --> Monitor[ModelMonitoringDriftDetector\n(Continuous Loop)]:::skill
+    Completed --> Monitor["ModelMonitoringDriftDetector<br/>(Continuous Loop)"]:::skill
 
-    Redis[(Redis: Volatile State\nTTL 72h)] -.-> Router & Backprop & Escalation
-    Audit[(GovernanceCore DB\nAppend-Only Audit)] -.-> GovPartial & GovFinal & Escalation
+    Redis[("Redis: Volatile State<br/>TTL 72h")] -.-> Router & Backprop & Escalation
+    Audit[("GovernanceCore DB<br/>Append-Only Audit")] -.-> GovPartial & GovFinal & Escalation
 ```
 
 ### 5.2 Orchestrator state machine (FSM)
@@ -174,16 +182,16 @@ stateDiagram-v2
 
 ```mermaid
 flowchart LR
-    subgraph Volatile_Layer [Redis (Volatile State)]
+    subgraph Volatile_Layer ["Redis (Volatile State)"]
         direction LR
         Ctx[Execution Context] <--> Counters[Iteration Counters]
         Counters <--> Temp[TTL 72h Auto-Expiry]
     end
 
-    subgraph Audit_Layer [GovernanceCore (Immutable Ledger)]
+    subgraph Audit_Layer ["GovernanceCore (Immutable Ledger)"]
         direction LR
-        Runs[(Runs: Append-Only)] --> Overrides[(Overrides: Indexed)]
-        Overrides --> Checkpoints[(Checkpoints: TTL 24h)]
+        Runs[("Runs: Append-Only")] --> Overrides[("Overrides: Indexed")]
+        Overrides --> Checkpoints[("Checkpoints: TTL 24h")]
     end
 
     Input[Raw Input Data] -->|SHA-256| Hash[data_hash]

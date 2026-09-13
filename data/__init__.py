@@ -1,1 +1,1 @@
-# Paquete de datos locales (descargas, cach�).
+# Paquete de datos locales (descargas, caché).

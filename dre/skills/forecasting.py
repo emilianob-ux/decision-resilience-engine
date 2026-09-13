@@ -20,7 +20,12 @@ def fit_univariate_series(samples: np.ndarray) -> Dict[str, Any]:
     ks_stat: Optional[float] = None
     ks_pvalue: Optional[float] = None
     if n > 5 and sd > 1e-12:
-        ks_stat, ks_pvalue = stats.kstest(x, "norm", args=(mu, sd))
+        # Se pasa el CDF de la normal ya congelada en (mu, sd) en lugar de
+        # `kstest(x, "norm", args=(mu, sd))`: desde scipy 1.18 esa forma resuelve
+        # el nombre al ufunc crudo `ndtr` y le reenvía `args` posicionalmente,
+        # lo que revienta con `TypeError: ndtr() takes from 1 to 2 positional
+        # arguments but 3 were given`. El resultado numérico es idéntico.
+        ks_stat, ks_pvalue = stats.kstest(x, stats.norm(loc=mu, scale=sd).cdf)
 
     return {
         "kind": "univariate_gaussian_proxy",

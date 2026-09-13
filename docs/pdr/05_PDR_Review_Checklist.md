@@ -1,5 +1,10 @@
 # 05 — PDR Review Checklist
 
+> **Plantilla, no acta.** Este repo lo mantiene una sola persona: las filas de
+> aprobadores y la tabla de firmas son la estructura del formato PDR, no
+> aprobaciones que hayan ocurrido. Ver la nota de alcance en
+> [README.md](README.md).
+
 ## Criterios Go / No-Go
 
 | # | Ítem de revisión | Estado | Evidencia | Aprobador |

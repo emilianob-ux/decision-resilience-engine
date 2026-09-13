@@ -47,6 +47,52 @@ class TestDREApi(unittest.TestCase):
             res = client.post("/dre/simulate", json=clash)
             self.assertEqual(res.status_code, 409)
 
+    def test_rejects_malformed_run_id_with_422(self) -> None:
+        """El patrón de `run_id` es parte del contrato público, no una convención."""
+        app = create_app(governance_db_path=self.db_path)
+        with TestClient(app) as client:
+            res = client.post(
+                "/dre/simulate",
+                json={"run_id": "no-es-un-run-id", "data_hash": "sha256:x"},
+            )
+            self.assertEqual(res.status_code, 422, res.text)
+
+    def test_rejects_unknown_variant_with_422(self) -> None:
+        app = create_app(governance_db_path=self.db_path)
+        with TestClient(app) as client:
+            res = client.post(
+                "/dre/simulate",
+                json={
+                    "run_id": "opt_20260505_160000_v5.0",
+                    "data_hash": "sha256:x",
+                    "variant": "turbo",
+                },
+            )
+            self.assertEqual(res.status_code, 422, res.text)
+
+    def test_resume_unknown_run_is_404_not_500(self) -> None:
+        app = create_app(governance_db_path=self.db_path)
+        with TestClient(app) as client:
+            res = client.post("/dre/resume", json={"run_id": "opt_20990101_000000_v5.0"})
+            self.assertEqual(res.status_code, 404, res.text)
+
+    def test_intervention_variant_reaches_monitoring(self) -> None:
+        app = create_app(governance_db_path=self.db_path)
+        with TestClient(app) as client:
+            res = client.post(
+                "/dre/simulate",
+                json={
+                    "run_id": "opt_20260505_170000_v5.0",
+                    "data_hash": "sha256:cafe",
+                    "rng_seed": 9,
+                    "variant": "intervention",
+                },
+            )
+            self.assertEqual(res.status_code, 200, res.text)
+            body = res.json()
+            self.assertEqual(body["current_state"], "MONITORING")
+            self.assertIn("causal", body["skill_statuses"])
+
     def test_resume_endpoint(self) -> None:
         app = create_app(governance_db_path=self.db_path)
         with TestClient(app) as client:
