@@ -354,41 +354,21 @@ Esto no se puede cambiar desde un commit: hay que pegarlo en la UI del repo.
 
 ### About (descripción de una línea)
 
-**Actual:**
-> Decision Resilience Engine (DRE): orquestación, governance y API resiliente; incluye MAT (BTC/ETH) como puente de medición cuantitativa.
+Texto decidido, para pegar en **Settings → About → Description**:
 
-**Problema:** 145 caracteres, tres conceptos, dos siglas, y describe *componentes*
-en vez de *qué problema resuelve*. En el resultado de búsqueda de GitHub se corta.
-
-**Propuesta (pegar en Settings → About → Description):**
 ```
-Decision engine with an append-only audit ledger, idempotent runs and checkpoint resume. Python + FastAPI + SQLite.
+Auditable, idempotent, resumable decision engine. MAT is the measurement bench, not the product.
 ```
-115 caracteres. Sustantivos concretos, cero siglas antes del punto, y las tres
-tecnologías que un buscador filtra.
 
-**Website:** dejar vacío hasta publicar en PyPI. Hoy apunta al propio repo, lo que
-no agrega nada.
+**Website:** dejar vacío hasta publicar en PyPI.
 
-### Topics (máximo 10, precisos)
+### Topics (8)
 
-**Actuales (19):** `backtesting`, `binance`, `cryptocurrency`, `decision-engine`,
-`decision-intelligence`, `dre`, `fastapi`, `futures`, `governance`, `monte-carlo`,
-`numpy`, `optimization`, `orchestration`, `pypi`, `python`, `quantitative-finance`,
-`research`, `resilience`, `risk-management`.
+Lista decidida, para pegar en **Settings → About → Topics**:
 
-**Problemas:** cinco topics (`binance`, `cryptocurrency`, `futures`,
-`quantitative-finance`, `monte-carlo`) empujan el repo al vecindario "bot de cripto",
-que es el peor posicionamiento para el objetivo de contratación. `pypi` no es un
-tema. `dre` no lo busca nadie. `numpy` es ruido.
-
-**Propuesta (pegar los 9):**
 ```
-python  fastapi  sqlite  orchestration  state-machine  audit-log  idempotency  observability  backtesting
+python  fastapi  decision-engine  orchestration  governance  reproducibility  quantitative-finance  research
 ```
-`state-machine`, `audit-log` e `idempotency` son exactamente lo que el repo
-demuestra y lo que busca alguien que arma plataforma. `backtesting` se queda —es
-real— pero como el único topic del dominio cuantitativo, no como cinco.
 
 ### Social preview (Settings → Social preview)
 
